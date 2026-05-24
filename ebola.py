@@ -1,39 +1,37 @@
 import streamlit as st
 import pandas as pd
 import requests
-import smtplib
-from email.message import EmailMessage
 
-st.set_page_config(page_title="5a48k GÖZLEMEVİ", layout="wide")
-st.title("🌐 5a48k GLOBAL EPİDEMİYOLOJİK TAKİP")
+st.set_page_config(page_title="5a48k TAHMİN MOTORU", layout="wide")
+st.title("🌐 PANDEMİ RİSK ANALİZ VE TAHMİN MOTORU")
 
-# E-posta gönderme fonksiyonu
-def send_alert(risk):
-    msg = EmailMessage()
-    msg.set_content(f"DİKKAT! Risk seviyesi {risk} üzerine çıktı. Protokol 'Dark Winter' devrede.")
-    msg['Subject'] = "🚨 KRİZ MERKEZİ ACİL BİLDİRİM"
-    msg['From'] = "senin-mailin@gmail.com"
-    msg['To'] = "senin-mailin@gmail.com"
-    
-    password = st.secrets["G_PASSWORD"]
-    
-    try:
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
-            smtp.login("senin-mailin@gmail.com", password)
-            smtp.send_message(msg)
-        return True
-    except:
-        return False
+@st.cache_data(ttl=3600)
+def get_live_data():
+    # Güncel veri setini çek
+    url = "https://raw.githubusercontent.com/owid/ebola-data/master/data/ebola.csv"
+    return pd.read_csv(url)
 
-# Veri çekme ve Risk Hesaplama
-risk_skoru = 80.2 # Test için sabit, sonra canlı veriye bağlayacağız
+df = get_live_data()
 
-st.metric("CANLI RİSK İNDEKSİ", f"{risk_skoru:.2f}/100")
+# Veriden son iki değeri alıp artış hızını hesapla
+son_deger = df['Value'].iloc[-1]
+onceki_deger = df['Value'].iloc[-2]
+artis_hizi = ((son_deger - onceki_deger) / onceki_deger) * 100
 
-if risk_skoru > 70:
-    st.error("!!! PROTOKOL: 'DARK WINTER' DEVREDE !!!")
-    if st.button("Acil Durum Bildirimi Gönder"):
-        if send_alert(risk_skoru):
-            st.success("Uyarı maili başarıyla gönderildi!")
-        else:
-            st.error("Mail gönderilemedi, uygulama şifresini kontrol et.")
+# Pandemi İhtimali Hesaplama (Basit Logaritmik Model)
+pandemi_ihtimali = min(100, (son_deger / 1000) * (1 + (artis_hizi / 100)))
+
+# Arayüz
+col1, col2 = st.columns(2)
+col1.metric("GÜNCEL VAKA", int(son_deger))
+col2.metric("ARTIŞ HIZI", f"%{artis_hizi:.2f}")
+
+st.divider()
+st.subheader(f"📊 HESAPLANAN PANDEMİ OLASILIĞI: %{pandemi_ihtimali:.2f}")
+
+if pandemi_ihtimali > 70:
+    st.error("KRİTİK SEVİYE: Yayılım hızı kontrol edilemiyor.")
+elif pandemi_ihtimali > 40:
+    st.warning("DİKKAT: Bölgesel yayılım riski yüksek.")
+else:
+    st.success("STABİL: Mevcut verilerde pandemi tehdidi düşük.")
