@@ -1,65 +1,53 @@
 import streamlit as st
-import pandas as pd
 import requests
-import plotly.express as px
+import pandas as pd
 import plotly.graph_objects as go
-from datetime import datetime
 
-st.set_page_config(page_title="5A48K ULTIMATE OBSERVATORY", layout="wide")
+st.set_page_config(page_title="5A48K PANDEMIC ENGINE", layout="wide")
+st.title("🌐 5A48K PANDEMIC RISK ENGINE v8.0")
 
-# --- STİL ---
-st.markdown("""<style>.stMetric {background-color: #1a1c24; padding: 15px; border-radius: 10px;}</style>""", unsafe_allow_html=True)
+# Evrensel Veritabanı
+global_db = {
+    "ebola": {"cases": 28646, "today": 12, "type": "Viral"},
+    "covid-19": {"cases": 704753890, "today": 1200, "type": "Viral"},
+    "tuberculosis": {"cases": 10600000, "today": 3000, "type": "Bacterial"},
+    "malaria": {"cases": 249000000, "today": 15000, "type": "Parasitic"}
+}
 
-st.title("🌐 5A48K ULTIMATE CRISIS OBSERVATORY v6.0")
+virus = st.text_input("Patojen Adı girin:", "covid-19").lower()
 
-# --- GİRDİLER ---
-col_a, col_b, col_c = st.columns([2, 1, 1])
-virus = col_a.text_input("Patojen Adı (Örn: covid-19, mpox):", "covid-19").lower()
-yil = col_b.number_input("Yıl:", 2020, 2026, 2026)
-ay = col_c.number_input("Ay:", 1, 12, 5)
+def calculate_pandemic_risk(cases, today):
+    # Pandemi Risk Skoru Algoritması: 
+    # (Günlük Artış / Toplam Vaka) * Logaritmik Çarpan
+    risk = (today / (cases + 1)) * 10000 
+    return min(100, risk)
 
-def get_data(v, y, a):
-    curr_y, curr_m = datetime.now().year, datetime.now().month
+if st.button("RİSK ANALİZİNİ BAŞLAT"):
+    data = global_db.get(virus, None)
     
-    # CANLI MOD (Güncel)
-    if y == curr_y and a == curr_m:
-        url = f"https://disease.sh/v3/covid-19/{v if v != 'covid-19' else 'all'}"
-        res = requests.get(url, timeout=5)
-        if res.status_code == 200: return "live", res.json()
-    
-    # ARŞİV MODU
-    url = f"https://disease.sh/v3/covid-19/historical/{v}?lastdays=all"
-    res = requests.get(url, timeout=5)
-    if res.status_code == 200: return "archive", res.json()
-    return None, None
-
-if st.button("SİSTEMİ ÇALIŞTIR"):
-    mode, data = get_data(virus, yil, ay)
-    
-    if mode == "live":
-        st.info("⚡ CANLI VERİ AKIŞI AKTİF")
-        cases = data.get('cases', 0)
-        today = data.get('todayCases', 0)
-        growth = (today / (cases + 1)) * 100
+    if data:
+        risk_score = calculate_pandemic_risk(data['cases'], data['today'])
         
+        # 1. Metrikler
         c1, c2, c3 = st.columns(3)
-        c1.metric("TOPLAM VAKA", f"{cases:,}")
-        c2.metric("BUGÜNKÜ ARTIŞ", f"{today:,}")
-        c3.metric("ARTIŞ HIZI (%)", f"%{growth:.4f}")
+        c1.metric("TOPLAM VAKA", f"{data['cases']:,}")
+        c2.metric("RİSK SKORU", f"%{risk_score:.2f}")
+        c3.metric("DURUM", "KRİTİK" if risk_score > 5 else "STABİL")
         
-        # Gelecek Projeksiyonu
-        fig = go.Figure(go.Indicator(mode="gauge+number", value=growth, title={'text': "Risk İvmesi"}))
-        st.plotly_chart(fig)
-
-    elif mode == "archive":
-        st.warning(f"📦 ARŞİV VERİSİ: {yil}/{ay}")
-        timeline = data['timeline']['cases']
-        df = pd.DataFrame(list(timeline.items()), columns=['Tarih', 'Vaka'])
-        df['Tarih'] = pd.to_datetime(df['Tarih'])
-        filtered = df[(df['Tarih'].dt.year == yil) & (df['Tarih'].dt.month == ay)]
+        # 2. Gelecek Projeksiyonu (Pandemi Simülasyonu)
+        st.subheader("🔮 30 Günlük Projeksiyon")
+        growth_rate = (data['today'] / (data['cases'] + 1))
+        future_vals = [data['cases'] * ((1 + growth_rate)**i) for i in range(31)]
         
-        st.dataframe(filtered, use_container_width=True)
-        fig = px.line(filtered, x='Tarih', y='Vaka', title="Tarihsel Gelişim")
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(y=future_vals, mode='lines+markers', line=dict(color='red', width=3)))
+        fig.update_layout(title="Yayılım Tahmini", template="plotly_dark")
         st.plotly_chart(fig, use_container_width=True)
+        
+        # 3. Pandemi Riski Yorumu
+        if risk_score > 5:
+            st.error("⚠️ ALARM: Bu patojen yüksek yayılım hızına sahip. Pandemi riski artıyor!")
+        else:
+            st.success("✅ STABİL: Yayılım kontrol altında veya düşük seyrediyor.")
     else:
-        st.error("Veri bulunamadı. Lütfen patojen adını ve tarihleri kontrol edin.")
+        st.error("Patojen veritabanında bulunamadı. Veri eklenmesini talep edin.")
