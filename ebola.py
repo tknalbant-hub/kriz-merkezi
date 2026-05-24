@@ -4,51 +4,50 @@ import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 
-st.set_page_config(page_title="5A48K CHRONO-PREDICTIVE", layout="wide")
-st.title("🌐 5A48K CHRONO-CRISIS OBSERVATORY")
+st.set_page_config(page_title="5A48K DYNAMIC SEARCH", layout="wide")
+st.title("🌐 5A48K DYNAMIC CRISIS SEARCH")
 
-# 1. ZAMANLI VERİ ÇEKME (Geçmiş 30 gün + Gelecek 30 gün)
+# 1. KULLANICI GİRİŞİ
+virus_adi = st.text_input("Sorgulanacak Virüs/Patojen Adı (Örn: covid-19, mpox):", value="covid-19").lower()
+
 @st.cache_data(ttl=3600)
 def get_chrono_data(pathogen):
-    # disease.sh'den son 30 günün geçmiş verisini çek
+    # Dinamik URL oluşturma
     url = f"https://disease.sh/v3/covid-19/historical/{pathogen}?lastdays=30"
     try:
-        response = requests.get(url, timeout=10).json()
-        timeline = response['timeline']['cases']
-        df = pd.DataFrame(list(timeline.items()), columns=['Tarih', 'Vaka Sayısı'])
-        df['Tarih'] = pd.to_datetime(df['Tarih'])
-        return df
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            timeline = response.json()['timeline']['cases']
+            df = pd.DataFrame(list(timeline.items()), columns=['Tarih', 'Vaka Sayısı'])
+            df['Tarih'] = pd.to_datetime(df['Tarih'])
+            return df
+        return None
     except: return None
 
-# Patojen Seçimi
-patojen = st.sidebar.selectbox("Patojen Seçimi", ["covid-19", "mpox"])
-df = get_chrono_data(patojen)
-
-if df is not None:
-    # 2. PROJEKSİYON HESAPLAMA
-    last_val = df['Vaka Sayısı'].iloc[-1]
-    growth = (df['Vaka Sayısı'].iloc[-1] - df['Vaka Sayısı'].iloc[-2]) / df['Vaka Sayısı'].iloc[-2]
+if st.button("Sorgula"):
+    df = get_chrono_data(virus_adi)
     
-    # Gelecek 30 günü simüle et
-    future_dates = [df['Tarih'].iloc[-1] + timedelta(days=i) for i in range(1, 31)]
-    future_vals = [last_val * (1 + growth)**i for i in range(1, 31)]
-    
-    future_df = pd.DataFrame({'Tarih': future_dates, 'Vaka Sayısı': future_vals})
-    
-    # 3. GRAFİKLEŞTİRME
-    fig = go.Figure()
-    # Geçmiş
-    fig.add_trace(go.Scatter(x=df['Tarih'], y=df['Vaka Sayısı'], name='Geçmiş (Gerçek)', line=dict(color='blue')))
-    # Gelecek
-    fig.add_trace(go.Scatter(x=future_df['Tarih'], y=future_df['Vaka Sayısı'], name='Gelecek (Simülasyon)', line=dict(color='red', dash='dash')))
-    
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # İstatistikler
-    col1, col2 = st.columns(2)
-    col1.metric("SON VAKA GİRİŞİ", f"{last_val:,}")
-    col2.metric("GÜNLÜK BÜYÜME HIZI", f"%{growth*100:.2f}")
-    
-    st.info("Mavi: Resmi sağlık kayıtları (Geçmiş). Kırmızı: Mevcut ivmeye göre tahmin edilen gelecek (Simülasyon).")
-else:
-    st.error("Veri akışında zaman aşımı.")
+    if df is not None:
+        st.success(f"'{virus_adi}' başarıyla yüklendi.")
+        
+        # Projeksiyon (Son 30 günün ortalama büyüme hızı)
+        growth = (df['Vaka Sayısı'].iloc[-1] - df['Vaka Sayısı'].iloc[-2]) / (df['Vaka Sayısı'].iloc[-2] + 1)
+        
+        # Gelecek 30 gün simülasyonu
+        last_date = df['Tarih'].iloc[-1]
+        future_dates = [last_date + timedelta(days=i) for i in range(1, 31)]
+        future_vals = [df['Vaka Sayısı'].iloc[-1] * (1 + growth)**i for i in range(1, 31)]
+        
+        # Grafik
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=df['Tarih'], y=df['Vaka Sayısı'], name='Geçmiş', line=dict(color='cyan')))
+        fig.add_trace(go.Scatter(x=future_dates, y=future_vals, name='Projeksiyon', line=dict(color='red', dash='dot')))
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Metrikler
+        col1, col2 = st.columns(2)
+        col1.metric("SON VAKA SAYISI", f"{int(df['Vaka Sayısı'].iloc[-1]):,}")
+        col2.metric("GÜNLÜK BÜYÜME", f"%{growth*100:.3f}")
+    else:
+        st.error(f"'{virus_adi}' verisi bulunamadı veya yazım hatası var. 'covid-19' veya 'mpox' deneyin.")
