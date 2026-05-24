@@ -1,63 +1,35 @@
 import streamlit as st
-import numpy as np
-import random
+import pandas as pd
+from hdx.hdx_configuration import Configuration
+from hdx.data.dataset import Dataset
 import smtplib
 from email.message import EmailMessage
-from datetime import datetime
 
-# --- AYARLAR ---
-G_MAIL = "tknalbant@gmail.com"
-# Şifreyi koda yazma! Streamlit Cloud 'Secrets' kısmına ekleyeceğiz.
-G_PASSWORD = st.secrets["G_PASSWORD"]
+# HDX Kurulumu (Halka açık veri olduğu için API anahtarı gerekmez)
+Configuration.create(hdx_site="prod", user_agent="Ebola_Monitor_5a48k")
 
-# --- E-POSTA MOTORU ---
-def send_email(risk, vaka):
-    msg = EmailMessage()
-    msg.set_content(f"!!! KRİTİK ALARM !!!\nRisk Skoru: {risk}/100\nGüncel Vaka: {vaka}\n\n'Dark Winter' protokolü aktif.")
-    msg['Subject'] = "🚨 5a48k KRİZ MERKEZİ - ACİL BİLDİRİM"
-    msg['From'] = G_MAIL
-    msg['To'] = G_MAIL
-    with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
-        smtp.login(G_MAIL, G_PASSWORD)
-        smtp.send_message(msg)
+st.set_page_config(page_title="5a48k PROFESYONEL GÖZLEMEVİ", layout="wide")
+st.title("🌐 5a48k GLOBAL EPİDEMİYOLOJİK TAKİP")
 
-# --- WEB SİTESİ ARAYÜZÜ ---
-st.set_page_config(page_title="5a48k OTONOM KRİZ", layout="wide")
-st.title("🛡️ 5a48k GLOBAL KRİZ VE HAYATTA KALMA MERKEZİ")
+@st.cache_data(ttl=3600) # Veriyi 1 saatliğine önbelleğe alır (Hız için)
+def get_live_data():
+    # HDX'ten Ebola verilerini çeken örnek dataset sorgusu
+    dataset = Dataset.read_from_hdx("ebola-data-west-africa")
+    resource = dataset.get_resources()[0]
+    data = resource.read_as_dataframe()
+    return data
 
-# --- VERİ VE SİMÜLASYON ---
-vaka = 620
-lojistik = random.randint(50, 99)
-panik = random.randint(40, 95)
-risk = (vaka * 0.05) + (lojistik * 0.4) + (panik * 0.3)
-risk = min(risk, 100)
+try:
+    with st.spinner("Canlı veriler sunucudan çekiliyor..."):
+        df = get_live_data()
+        current_cases = df['Total Cases'].iloc[-1] # Son kayıt
+        st.success(f"Güncel Vaka: {current_cases}")
+except Exception as e:
+    st.warning("Canlı veri geçici olarak ulaşılamaz, yerel mod aktif.")
+    current_cases = 620 # Yedek veri
 
-# --- PANEL ---
-col1, col2, col3 = st.columns(3)
-col1.metric("GENEL RİSK", f"{risk:.1f}/100")
-col2.metric("HASTANE YÜKÜ", f"%{lojistik}")
-col3.metric("SOSYAL PANİK", f"%{panik}")
+# Profesyonel Risk Modeli
+risk_skoru = (current_cases / 1000) * 100
+st.metric("CANLI RİSK İNDEKSİ", f"{risk_skoru:.2f}/100")
 
-# --- PROTOKOLLER VE OTOMATİK E-POSTA ---
-if risk > 70:
-    st.error("!!! PROTOKOL: 'DARK WINTER' DEVREDE !!!")
-    
-    # Sayfa yenilendiğinde tekrar mail atmasın diye kontrol
-    if 'mail_sent' not in st.session_state:
-        try:
-            send_email(risk, vaka)
-            st.session_state.mail_sent = True
-            st.success("Uyarı: Otomatik e-posta gönderildi.")
-        except Exception as e:
-            st.error(f"E-posta gönderim hatası: {e}")
-    
-    st.markdown("""
-    * **Lojistik:** Yerel tedarik zincirleri kontrol altında.
-    * **Biyolojik:** Mutasyon takibi aktif.
-    * **Savunma:** Maksimum izolasyon seviyesi.
-    """)
-else:
-    st.success("Sistem beklemede: 'Green Zone' aktif.")
-
-st.line_chart([150, 200, 350, 620, vaka])
-st.info(f"Son Güncelleme: {datetime.now().strftime('%H:%M:%S')} | Otonom Mod: AKTİF")
+# Burada send_email fonksiyonun ve UI kısmın kalabilir.
