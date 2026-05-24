@@ -1,58 +1,54 @@
 import streamlit as st
 import requests
 import pandas as pd
-import numpy as np
 import plotly.graph_objects as go
+from datetime import datetime, timedelta
 
-st.set_page_config(page_title="5A48K PREDICTIVE", layout="wide")
-st.title("🌐 5A48K PREDICTIVE CRISIS OBSERVATORY")
+st.set_page_config(page_title="5A48K CHRONO-PREDICTIVE", layout="wide")
+st.title("🌐 5A48K CHRONO-CRISIS OBSERVATORY")
 
+# 1. ZAMANLI VERİ ÇEKME (Geçmiş 30 gün + Gelecek 30 gün)
 @st.cache_data(ttl=3600)
-def fetch_data():
-    sources = {"COVID-19": "https://disease.sh/v3/covid-19/all", "Mpox": "https://disease.sh/v3/covid-19/mpox/all"}
-    results = []
-    for name, url in sources.items():
-        try:
-            data = requests.get(url, timeout=5).json()
-            cases = data['cases']
-            today = data['todayCases']
-            growth = (today / (cases + 1)) * 100
-            
-            # Üç farklı evren (Senaryo) için projeksiyon
-            results.append({
-                "Patojen": name,
-                "Toplam Vaka": cases,
-                "Artış Hızı": growth,
-                "Senaryo_Stabil": cases * (1 + growth/100),
-                "Senaryo_Mevcut": cases * (1 + growth/50),
-                "Senaryo_Kritik": cases * (1 + growth/10)
-            })
-        except: continue
-    return pd.DataFrame(results)
+def get_chrono_data(pathogen):
+    # disease.sh'den son 30 günün geçmiş verisini çek
+    url = f"https://disease.sh/v3/covid-19/historical/{pathogen}?lastdays=30"
+    try:
+        response = requests.get(url, timeout=10).json()
+        timeline = response['timeline']['cases']
+        df = pd.DataFrame(list(timeline.items()), columns=['Tarih', 'Vaka Sayısı'])
+        df['Tarih'] = pd.to_datetime(df['Tarih'])
+        return df
+    except: return None
 
-df = fetch_data()
+# Patojen Seçimi
+patojen = st.sidebar.selectbox("Patojen Seçimi", ["covid-19", "mpox"])
+df = get_chrono_data(patojen)
 
-if not df.empty:
-    st.subheader("🔮 Patojen Evrensel Risk Analizi")
+if df is not None:
+    # 2. PROJEKSİYON HESAPLAMA
+    last_val = df['Vaka Sayısı'].iloc[-1]
+    growth = (df['Vaka Sayısı'].iloc[-1] - df['Vaka Sayısı'].iloc[-2]) / df['Vaka Sayısı'].iloc[-2]
     
-    # Seçilen patojene göre risk yüzdesi hesapla
-    selected = st.selectbox("Analiz Edilecek Patojen", df["Patojen"].tolist())
-    p_data = df[df["Patojen"] == selected].iloc[0]
+    # Gelecek 30 günü simüle et
+    future_dates = [df['Tarih'].iloc[-1] + timedelta(days=i) for i in range(1, 31)]
+    future_vals = [last_val * (1 + growth)**i for i in range(1, 31)]
     
-    # Risk Puanı Hesaplama (Kritik senaryoya ne kadar yakınız?)
-    risk_score = min(100, (p_data["Artış Hızı"] * 50)) 
+    future_df = pd.DataFrame({'Tarih': future_dates, 'Vaka Sayısı': future_vals})
     
-    col1, col2, col3 = st.columns(3)
-    col1.metric("MEVCUT GİDİŞAT", f"{int(p_data['Senaryo_Mevcut']):,}")
-    col2.metric("KRİTİK EVREN RİSKİ", f"%{risk_score:.1f}")
-    col3.metric("ARTIŞ İVMESİ", f"%{p_data['Artış Hızı']:.4f}")
-    
-    # Görselleştirme
+    # 3. GRAFİKLEŞTİRME
     fig = go.Figure()
-    scenarios = ["Stabil", "Mevcut", "Kritik"]
-    values = [p_data["Senaryo_Stabil"], p_data["Senaryo_Mevcut"], p_data["Senaryo_Kritik"]]
+    # Geçmiş
+    fig.add_trace(go.Scatter(x=df['Tarih'], y=df['Vaka Sayısı'], name='Geçmiş (Gerçek)', line=dict(color='blue')))
+    # Gelecek
+    fig.add_trace(go.Scatter(x=future_df['Tarih'], y=future_df['Vaka Sayısı'], name='Gelecek (Simülasyon)', line=dict(color='red', dash='dash')))
     
-    fig.add_trace(go.Bar(x=scenarios, y=values, marker_color=['#00ff00', '#ffff00', '#ff0000']))
     st.plotly_chart(fig, use_container_width=True)
     
-    st.info(f"Sistem şu anda {selected} için {risk_score:.1f} puanlık bir risk evreninde işlem yapıyor.")
+    # İstatistikler
+    col1, col2 = st.columns(2)
+    col1.metric("SON VAKA GİRİŞİ", f"{last_val:,}")
+    col2.metric("GÜNLÜK BÜYÜME HIZI", f"%{growth*100:.2f}")
+    
+    st.info("Mavi: Resmi sağlık kayıtları (Geçmiş). Kırmızı: Mevcut ivmeye göre tahmin edilen gelecek (Simülasyon).")
+else:
+    st.error("Veri akışında zaman aşımı.")
