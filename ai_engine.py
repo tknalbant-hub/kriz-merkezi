@@ -1,11 +1,11 @@
 # ai_engine.py
-import g4f
+import google.generativeai as genai
 
 class AIEngine:
+    def __init__(self, api_key):
+        genai.configure(api_key=api_key)
+        self.model = genai.GenerativeModel('gemini-1.5-flash')
+
     def generate_logic(self, topic):
-        # API anahtarı olmadan ücretsiz model çağrısı
-        response = g4f.ChatCompletion.create(
-            model=g4f.models.gpt_4,
-            messages=[{"role": "user", "content": f"{topic} için Python kodu yaz."}],
-        )
-        return response
+        response = self.model.generate_content(f"Sen otonom bir yazılımcısın. {topic} konusunda çalışabilir, verimli bir Python kodu yaz.")
+        return response.text
