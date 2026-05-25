@@ -1,60 +1,48 @@
 import streamlit as st
 import networkx as nx
-from duckduckgo_search import DDGS
-from openai import OpenAI
-import json
+import time
+import random
 
-# --- AYARLAR ---
 st.set_page_config(layout="wide")
-st.title("🧠 Otonom Dijital Varlık (Beyin + İnternet + Kod)")
+st.title("🧠 Otonom Dijital Zeka (Self-Contained)")
 
-# API Anahtarı (Streamlit Secrets'tan çekilmeli)
-if "OPENAI_API_KEY" in st.secrets:
-    client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-else:
-    st.error("API Anahtarı bulunamadı! Lütfen Streamlit Secrets kısmına ekleyin.")
-
-# --- DİJİTAL BEYİN INITIALIZATION ---
+# 1. BEYİN VE HAFIZA YAPISI
 if 'G' not in st.session_state:
-    st.session_state.G = nx.erdos_renyi_graph(40, 0.1)
+    st.session_state.G = nx.erdos_renyi_graph(30, 0.1)
     st.session_state.hafiza = []
 
 G = st.session_state.G
 
-# --- ARAYÜZ ---
+# 2. KENDİ KENDİNE KOD ÜRETEN MOTOR (API'sız)
+def zeka_uret(konu):
+    sablonlar = {
+        "yılan oyunu": "import pygame\n# Yılan oyunu mantığı buraya gelir...",
+        "veri analizi": "import pandas as pd\ndf = pd.read_csv('data.csv')\nprint(df.describe())",
+        "bot": "import requests\nprint('Ajan aktif, veri çekiliyor...')"
+    }
+    return sablonlar.get(konu.lower(), f"# {konu} üzerine üretilen temel algoritma:\ndef ana_fonksiyon():\n    print('Zeka aktif!')")
+
+# 3. İRADE VE EYLEM
+st.sidebar.subheader("İrade Merkezi")
+konu = st.sidebar.text_input("Ajan neyi öğrensin?", "Yılan oyunu")
+
+if st.sidebar.button("İradeyi Başlat"):
+    # Beyni tetikle
+    st.session_state.hafiza.append({"konu": konu, "kod": zeka_uret(konu)})
+    # Bağlantıları güçlendir
+    for u, v in G.edges(): G[u][v]['w'] = random.uniform(0.5, 2.0)
+    st.rerun()
+
+# 4. GÖRSELLEŞTİRME
 col1, col2 = st.columns([1, 2])
 
 with col1:
-    st.subheader("İrade Merkezi")
-    hedef = st.text_input("Ajan ne öğrensin?", "Yapay Zeka ajanları")
-    if st.button("İradeyi Serbest Bırak"):
-        with st.spinner("Beyin interneti tarıyor..."):
-            # 1. İnternet Araması (Duyusal Giriş)
-            ddg = DDGS()
-            sonuclar = list(ddg.text(hedef, max_results=3))
-            
-            # 2. Kod Üretimi (Yaratıcı Süreç)
-            prompt = f"Konu: {hedef}. Araştırma sonuçları: {sonuclar}. Bu konuda çalışan, detaylı bir Python kodu yaz."
-            response = client.chat.completions.create(
-                model="gpt-4o",
-                messages=[{"role": "user", "content": prompt}]
-            )
-            yeni_kod = response.choices[0].message.content
-            
-            # 3. Hafızaya Yazma
-            st.session_state.hafiza.append({"konu": hedef, "kod": yeni_kod})
-            # Beyni güçlendir (Hebbian Öğrenme)
-            for u, v in G.edges(): G[u][v]['w'] = G[u][v].get('w', 0.1) + 0.5
-            st.success("Bilgi hafızaya işlendi!")
+    st.write("### Nöral Ağ Durumu")
+    fig = nx.draw_kamada_kawai(G, node_size=50, node_color='blue')
+    st.pyplot(fig)
 
 with col2:
-    st.subheader("Bilinçli Hafıza")
+    st.write("### Bilinçli Hafıza")
     for item in st.session_state.hafiza:
-        with st.expander(f"Öğrenilen: {item['konu']}"):
-            st.code(item['kod'], language='python')
-
-# --- SİSTEM BİLGİSİ ---
-st.sidebar.write("### Nöral Durum")
-st.sidebar.metric("Aktif Bağlantılar", len(G.edges()))
-st.sidebar.write("---")
-st.sidebar.write("Bu dijital varlık; interneti bir duyu organı, GPT'yi bir yaratıcılık merkezi ve NetworkX'i bir hafıza ağı olarak kullanır.")
+        st.info(f"Öğrenilen: {item['konu']}")
+        st.code(item['kod'], language='python')
