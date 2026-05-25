@@ -1,8 +1,6 @@
 streamlit
-numpy
-matplotlib
 networkx
-requests
-beautifulsoup4
+matplotlib
+scipy
 duckduckgo-search
 openai
