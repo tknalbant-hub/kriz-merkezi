@@ -4,51 +4,59 @@ import networkx as nx
 import matplotlib.pyplot as plt
 
 # Sayfa Ayarları
-st.set_page_config(page_title="Dijital Beyin Simülasyonu", layout="wide")
-st.title("🧠 İnsan Beyni Simülasyon Motoru (Beta)")
-st.sidebar.header("Simülasyon Ayarları")
+st.set_page_config(page_title="Dijital Beyin 2.0", layout="wide")
+st.title("🧠 Öğrenen Beyin Simülasyonu (Hebbian Model)")
 
-# 1. Nöral Ağ Kurulumu
-def ag_kur(n_noron):
-    G = nx.erdos_renyi_graph(n_noron, 0.05) # Rastgele bağlantılı nöral ağ
-    for node in G.nodes():
-        G.nodes[node]['voltaj'] = np.random.uniform(-70, -50)
-    return G
+# Oturum durumunda ağı sakla (Sayfa yenilenince ağ silinmesin)
+if 'G' not in st.session_state:
+    n = 200
+    st.session_state.G = nx.erdos_renyi_graph(n, 0.05)
+    # Başlangıçta tüm bağlantı ağırlıklarını 1.0 yap
+    for u, v in st.session_state.G.edges():
+        st.session_state.G[u][v]['weight'] = 0.1
+    for node in st.session_state.G.nodes():
+        st.session_state.G.nodes[node]['voltaj'] = -70.0
 
-# Sidebar kontrolleri
-n = st.sidebar.slider("Nöron Sayısı", 50, 500, 100)
-G = ag_kur(n)
+G = st.session_state.G
 
-# 2. Simülasyon Motoru
+# 1. Simülasyon Motoru (İnhibisyon ve Hebbian Öğrenme ile)
 def simule_et(G):
     ateslenenler = []
+    # Eşik değerini geçenleri bul
     for node in G.nodes():
-        # Eşik değeri -55mV (Biyolojik gerçeklik)
-        if G.nodes[node]['voltaj'] > -55:
+        if G.nodes[node]['voltaj'] > -50:
             ateslenenler.append(node)
-            # Ateşlenen nöron komşularını etkiler
-            for komsu in G.neighbors(node):
-                G.nodes[komsu]['voltaj'] += 5 
+    
+    # Sinyal Yayılımı ve Öğrenme
+    for node in ateslenenler:
+        for komsu in G.neighbors(node):
+            # 1. Yayılım (Ağırlığa göre sinyal geçişi)
+            G.nodes[komsu]['voltaj'] += G[node][komsu]['weight'] * 20
+            
+            # 2. Hebbian Öğrenme: Birlikte ateşlenenlerin bağı güçlenir
+            if G.nodes[komsu]['voltaj'] > -50:
+                G[node][komsu]['weight'] += 0.05 # Yolu güçlendir
+                
+        # 3. İnhibisyon: Ateşlenen nöronun voltajını sıfırla (Dinlenme süreci)
+        G.nodes[node]['voltaj'] = -70.0
+        
     return ateslenenler
 
-# 3. Görselleştirme
-if st.button("Düşünce Sinyali Gönder"):
+# Arayüz
+if st.button("Sinyal Gönder (Öğrenmeyi Tetikle)"):
     ateslenenler = simule_et(G)
     
-    col1, col2 = st.columns([2, 1])
+    # Görselleştirme
+    fig, ax = plt.subplots(figsize=(10, 6))
+    pos = nx.spring_layout(G)
     
-    with col1:
-        st.write("### Nöral Ağ Aktivitesi")
-        fig, ax = plt.subplots(figsize=(8, 6))
-        pos = nx.spring_layout(G)
-        nx.draw(G, pos, node_size=50, node_color='blue', alpha=0.6)
-        nx.draw_networkx_nodes(G, pos, nodelist=ateslenenler, node_color='red', node_size=100)
-        st.pyplot(fig)
-        
-    with col2:
-        st.write("### İstatistikler")
-        st.metric("Toplam Nöron", n)
-        st.metric("Ateşlenen Nöron", len(ateslenenler))
-        st.success("Sinyal ağ boyunca yayıldı.")
+    # Bağlantı kalınlıklarını ağırlığa göre ayarla
+    weights = [G[u][v]['weight'] for u, v in G.edges()]
+    
+    nx.draw(G, pos, width=weights, node_size=50, node_color='blue', alpha=0.3)
+    nx.draw_networkx_nodes(G, pos, nodelist=ateslenenler, node_color='red', node_size=100)
+    
+    st.pyplot(fig)
+    st.metric("Öğrenilen Bağlantı Sayısı", sum(1 for u, v in G.edges() if G[u][v]['weight'] > 0.2))
 else:
-    st.info("Simülasyonu başlatmak için butona bas.")
+    st.write("Simülasyon hazır. Butona basarak ağın 'öğrenmesini' başlat.")
