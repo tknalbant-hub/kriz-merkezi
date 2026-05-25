@@ -1,8 +1,11 @@
 # web_scrapper.py
-from duckduckgo_search import DDGS
+from googleapiclient.discovery import build
 
 class WebSpider:
+    def __init__(self, api_key, cse_id):
+        self.service = build("customsearch", "v1", developerKey=api_key)
+        self.cse_id = cse_id
+
     def crawl(self, topic):
-        with DDGS() as ddgs:
-            results = list(ddgs.text(topic, max_results=3))
-            return [res['body'] for res in results]
+        res = self.service.cse().list(q=topic, cx=self.cse_id).execute()
+        return [item['snippet'] for item in res.get('items', [])[:3]]
