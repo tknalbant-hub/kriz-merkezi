@@ -3,3 +3,6 @@ google-generativeai
 google-api-python-client
 psutil
 gitpython
+matplotlib
+networkx
+duckduckgo-search
