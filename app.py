@@ -3,7 +3,9 @@ import os
 import shutil
 from ai_engine import AIEngine
 from backup_system import take_backup
-
+# Eğer diğer modülleri kullanacaksan buraya ekle:
+# from web_scrapper import WebSpider
+# from system_monitor import SystemMonitor
 # --- SİSTEM YAPILANDIRMASI ---
 st.set_page_config(page_title="Otonom Dijital Varlık", layout="wide")
 
