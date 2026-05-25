@@ -1,5 +1,4 @@
 streamlit
-openai
+g4f
 duckduckgo-search
 psutil
-gitpython
