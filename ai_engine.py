@@ -5,8 +5,8 @@ class AIEngine:
     def __init__(self):
         # API anahtarını alıyoruz
         self.api_key = st.secrets["GEMINI_API_KEY"]
-        # Kütüphane kullanmadan, doğrudan Google'ın REST API uç noktasına bağlanıyoruz
-        self.url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={self.api_key}"
+        # HATA BURADAYDI: v1beta yerine artık tam sürüm olan v1 kullanıyoruz
+        self.url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={self.api_key}"
 
     def generate_logic(self, topic):
         # Gemini'a göndereceğimiz komut paketi
@@ -23,6 +23,10 @@ class AIEngine:
             response = requests.post(self.url, headers=headers, json=payload)
             data = response.json()
             
+            # Eğer Google'dan beklenmedik bir hata dönerse (örn: kota aşımı) ajanın çökmemesi için kontrol:
+            if 'candidates' not in data:
+                return f"# Google API Yanıt Hatası:\n# {data}"
+            
             # Gelen verinin içinden sadece yazılan kodu çek
             kod_metni = data['candidates'][0]['content']['parts'][0]['text']
             
@@ -32,5 +36,5 @@ class AIEngine:
             return kod_metni
             
         except Exception as e:
-            # Eğer bir şeyler ters giderse log tutsun ki ne olduğunu görelim
-            return f"# API Bağlantı Hatası:\n# {str(data)}"
+            # İnternet kopması vb. durumlarda sistemi koru
+            return f"# Sistemsel Bağlantı Hatası:\n# {str(e)}"
