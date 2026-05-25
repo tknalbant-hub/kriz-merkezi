@@ -6,7 +6,7 @@ class AIEngine:
         # API anahtarını alıyoruz
         self.api_key = st.secrets["GEMINI_API_KEY"]
         # HATA BURADAYDI: v1beta yerine artık tam sürüm olan v1 kullanıyoruz
-        self.url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={self.api_key}"
+        self.url = f"https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key={self.api_key}"
 
     def generate_logic(self, topic):
         # Gemini'a göndereceğimiz komut paketi
