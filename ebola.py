@@ -5,48 +5,69 @@ import matplotlib.pyplot as plt
 import time
 
 st.set_page_config(layout="wide")
-st.title("🧠 Otonom Öğrenen Beyin (Self-Learning)")
+st.title("🧠 İnsan Beyni: Tam Ölçekli Otonom Simülasyon")
 
-# Ağın kendi kendine gelişmesi için session_state'i başlat
 if 'G' not in st.session_state:
-    G = nx.erdos_renyi_graph(100, 0.05)
-    for n in G.nodes(): G.nodes[n]['v'] = 0.0
-    for u, v in G.edges(): G[u][v]['w'] = 0.5
+    G = nx.erdos_renyi_graph(80, 0.05)
+    for n in G.nodes(): 
+        G.nodes[n]['v'] = 0.0      # Voltaj
+        G.nodes[n]['threshold'] = 20.0 # Bireysel eşik
+    for u, v in G.edges(): 
+        G[u][v]['w'] = 0.1         # Bağlantı gücü
     st.session_state.G = G
 
 G = st.session_state.G
 
 def otonom_beyin(G):
-    # 1. KENDİ KENDİNE TETİKLEME (Düşünce üretimi)
-    if np.random.rand() > 0.3: # %70 ihtimalle kendi kendine bir bölgeyi tetikle
-        node = np.random.choice(list(G.nodes()))
-        G.nodes[node]['v'] = 100.0
+    # 1. RASTGELE DÜŞÜNCE (Dış etki)
+    if np.random.rand() > 0.3:
+        target = np.random.choice(list(G.nodes()))
+        G.nodes[target]['v'] += 50.0
     
-    # 2. ÖĞRENME DÖNGÜSÜ
     ateslenenler = []
+    # 2. ATEŞLEME & İNHİBİSYON
     for n in G.nodes():
-        if G.nodes[n].get('v', 0) > 20:
+        if G.nodes[n]['v'] > G.nodes[n]['threshold']:
             ateslenenler.append(n)
-            for k in G.neighbors(n):
-                # Bilgi akışı ve sinaptik güçlenme (Öğrenme)
-                G.nodes[k]['v'] = G.nodes[k].get('v', 0) + (G[n][k].get('w', 1) * 20)
-                G[n][k]['w'] = min(2.0, G[n][k].get('w', 1) + 0.1) # Sabit öğrenme
+            # İnhibisyon: Ateşlenen nöron etrafı "susturur" (denge)
+            for komsu in G.neighbors(n):
+                G.nodes[komsu]['v'] += (G[n][komsu]['w'] * 30.0)
+                # ÖĞRENME: Dopamin etkisi (Ateşlenen yollar güçlenir)
+                G[n][komsu]['w'] = min(4.0, G[n][komsu]['w'] + 0.3)
+        else:
+            # UNUTMA: Kullanılmayan yollar zamanla zayıflar
+            for komsu in G.neighbors(n):
+                G[n][komsu]['w'] = max(0.01, G[n][komsu]['w'] - 0.01)
                 
-    # 3. VOLTAJ SIFIRLAMA (Beynin soğuması)
-    for n in G.nodes(): G.nodes[n]['v'] = 0.0
+    # 3. VOLTAJ SIFIRLAMA
+    for n in G.nodes(): G.nodes[n]['v'] = max(0, G.nodes[n]['v'] - 5.0)
     return ateslenenler
 
 # Arayüz
-if st.checkbox("Simülasyonu Otomatik Başlat"):
-    while True:
-        at = otonom_beyin(G)
-        fig, ax = plt.subplots()
-        colors = ['red' if n in at else 'blue' for n in G.nodes()]
-        nx.draw(G, pos=nx.spring_layout(G), node_color=colors, node_size=30)
-        st.pyplot(fig)
-        time.sleep(1) # Saniyede bir güncelle
-        st.rerun() # Sayfayı otomatik yenile
+col1, col2 = st.columns([3, 1])
 
-if st.button("Ağı Sıfırla"):
+with col1:
+    if st.checkbox("Bilinci Başlat"):
+        at = otonom_beyin(G)
+        weights = [G[u][v]['w'] for u, v in G.edges()]
+        colors = ['red' if w > 1.5 else 'black' for w in weights]
+        
+        fig, ax = plt.subplots(figsize=(8,6))
+        nx.draw(G, pos=nx.spring_layout(G), node_color=['red' if n in at else 'blue' for n in G.nodes()], 
+                edge_color=colors, width=weights, node_size=50)
+        st.pyplot(fig)
+        time.sleep(0.3)
+        st.rerun()
+
+with col2:
+    st.write("### Beyin Durumu")
+    st.metric("Kalıcı Hafıza (Güçlü Bağlantı)", sum(1 for u, v in G.edges() if G[u][v]['w'] > 1.5))
+    st.write("---")
+    st.write("**Biyolojik Kurallar:**")
+    st.write("• **Hebbian Öğrenme:** Birlikte ateşlenenler bağlanır.")
+    st.write("• **Sinaptik Budama:** Kullanılmayan yollar silinir (Unutma).")
+    st.write("• **Homeostaz:** Nöronlar dinlenmeye çalışır.")
+
+if st.button("Beyni Sıfırla"):
     del st.session_state.G
     st.rerun()
