@@ -1,6 +1,5 @@
 streamlit
-networkx
-matplotlib
-scipy
-duckduckgo-search
 openai
+duckduckgo-search
+psutil
+gitpython
